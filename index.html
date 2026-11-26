@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Regional Vegetable Detection & Stock Counter</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --border: #334155;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --secondary: #3b82f6;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 2rem; }
+    header h1 {
+      font-size: 2rem; font-weight: 700; letter-spacing: -0.02em;
+      background: linear-gradient(90deg, #34d399, #60a5fa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    header p { color: var(--muted); margin-top: 0.4rem; font-size: 0.95rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35);
+    }
+    .dropzone {
+      border: 2px dashed #475569; border-radius: 12px; min-height: 290px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease;
+      background: rgba(15, 23, 42, 0.5);
+    }
+    .dropzone.dragover { border-color: var(--primary); background: rgba(16, 185, 129, 0.08); }
+    .dropzone img { max-width: 100%; max-height: 360px; border-radius: 8px; object-fit: contain; }
+    .placeholder-text { color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
+    .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-top: 1.25rem; }
+    button {
+      padding: 0.85rem 1rem; border: none; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease;
+    }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-choose { background: var(--secondary); color: #fff; }
+    .btn-choose:hover:not(:disabled) { background: #2563eb; }
+    .btn-detect { background: var(--primary); color: #06281e; }
+    .btn-detect:hover:not(:disabled) { background: var(--primary-hover); color: #fff; }
+    .section-title {
+      font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .badge-total {
+      background: rgba(16, 185, 129, 0.15); color: #34d399;
+      padding: 0.25rem 0.7rem; border-radius: 999px; font-size: 0.85rem;
+    }
+    .stock-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.92rem; }
+    .stock-table th, .stock-table td { padding: 0.65rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .stock-table th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .status-pill {
+      background: rgba(52, 211, 153, 0.15); color: #34d399;
+      padding: 0.2rem 0.55rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600;
+    }
+    .det-list { display: flex; flex-direction: column; gap: 0.65rem; max-height: 280px; overflow-y: auto; }
+    .det-card {
+      background: rgba(15, 23, 42, 0.65); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center;
+    }
+    .det-info small { display: block; color: var(--muted); font-size: 0.78rem; }
+    .det-info strong { font-size: 0.98rem; color: var(--text); }
+    .match-score { font-weight: 700; color: #34d399; font-size: 0.95rem; }
+    .empty-state { color: var(--muted); font-size: 0.9rem; text-align: center; padding: 2rem 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Regional Vegetable Detection & Stock Counter</h1>
+      <p>Custom YOLOv8s Inference Engine &bull; Confidence Threshold: 65%</p>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <div class="section-title"><span>Input / Annotated Output</span></div>
+        <div class="dropzone" id="dropzone">
+          <div class="placeholder-text" id="placeholder">
+            <strong>Drag & drop an image here</strong><br />
+            or click "1. Choose Image" below<br />
+            <small>(Supports Bitter Gourd, Okra, Brinjal, Ridge Gourd, Bottle Gourd)</small>
+          </div>
+          <img id="previewImg" style="display: none;" alt="Preview" />
+        </div>
+        <input type="file" id="fileInput" accept="image/*" hidden />
+        <div class="btn-group">
+          <button class="btn-choose" id="chooseBtn">1. Choose Image</button>
+          <button class="btn-detect" id="detectBtn" disabled>2. Detect & Count</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">
+          <span>Inventory Stock Summary</span>
+          <span class="badge-total" id="totalBadge">Total Items: 0</span>
+        </div>
+        <div id="stockContainer">
+          <div class="empty-state">Upload an image and click "Detect & Count" to generate stock summary.</div>
+        </div>
+        <div class="section-title" style="margin-top: 1rem;"><span>Detected Objects</span></div>
+        <div class="det-list" id="detList">
+          <div class="empty-state">No detections yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const chooseBtn = document.getElementById('chooseBtn');
+    const detectBtn = document.getElementById('detectBtn');
+    const previewImg = document.getElementById('previewImg');
+    const placeholder = document.getElementById('placeholder');
+    const totalBadge = document.getElementById('totalBadge');
+    const stockContainer = document.getElementById('stockContainer');
+    const detList = document.getElementById('detList');
+    let selectedFile = null;
+
+    chooseBtn.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault(); dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImg.src = e.target.result;
+        previewImg.style.display = 'block';
+        placeholder.style.display = 'none';
+        detectBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    detectBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      detectBtn.disabled = true;
+      detectBtn.textContent = 'Analyzing...';
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const res = await fetch('/detect', { method: 'POST', body: formData });
+        const data = await res.json();
+        previewImg.src = data.annotated_image;
+        totalBadge.textContent = `Total Items: ${data.total_count}`;
+
+        const entries = Object.entries(data.stock_summary);
+        if (entries.length === 0) {
+          stockContainer.innerHTML = `<div class="empty-state">No target vegetables detected above 65% confidence.</div>`;
+          detList.innerHTML = `<div class="empty-state">No objects matched.</div>`;
+        } else {
+          let tableHtml = `<table class="stock-table"><thead><tr><th>Vegetable</th><th>Count</th><th>Status</th></tr></thead><tbody>`;
+          for (const [veg, count] of entries) {
+            tableHtml += `<tr><td><strong>${veg}</strong></td><td>${count} unit${count > 1 ? 's' : ''}</td><td><span class="status-pill">In Stock</span></td></tr>`;
+          }
+          tableHtml += `</tbody></table>`;
+          stockContainer.innerHTML = tableHtml;
+
+          detList.innerHTML = data.detections.map(d => `
+            <div class="det-card">
+              <div class="det-info"><small>${d.category}</small><strong>${d.name}</strong></div>
+              <div class="match-score">${d.confidence}% Match</div>
+            </div>
+          `).join('');
+        }
+      } catch (err) {
+        alert('Detection failed. Check console or backend server.');
+        console.error(err);
+      } finally {
+        detectBtn.disabled = false;
+        detectBtn.textContent = '2. Detect & Count';
+      }
+    });
+  </script>
+</body>
+</html>

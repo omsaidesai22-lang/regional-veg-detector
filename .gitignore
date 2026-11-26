@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+venv/
+.env
+raw_dataset/
+yolo_dataset/
+yolo_dataset.zip
+runs/
+*.jpg
+*.png
+!results.png
+.DS_Store
+.vscode/
